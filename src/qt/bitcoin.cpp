@@ -1,5 +1,5 @@
 // Copyright (c) 2011-2016 The Bitcoin Core developers
-// Copyright (c) 2021 The Dogecoin Core developers
+// Copyright (c) 2021-2023 The Dogecoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -11,6 +11,8 @@
 
 #include "chainparams.h"
 #include "clientmodel.h"
+#include "compat.h"
+#include "fs.h"
 #include "guiconstants.h"
 #include "guiutil.h"
 #include "intro.h"
@@ -39,7 +41,6 @@
 
 #include <stdint.h>
 
-#include <boost/filesystem/operations.hpp>
 #include <boost/thread.hpp>
 
 #include <QApplication>
@@ -55,13 +56,6 @@
 
 #if defined(QT_STATICPLUGIN)
 #include <QtPlugin>
-#if QT_VERSION < 0x050000
-Q_IMPORT_PLUGIN(qcncodecs)
-Q_IMPORT_PLUGIN(qjpcodecs)
-Q_IMPORT_PLUGIN(qtwcodecs)
-Q_IMPORT_PLUGIN(qkrcodecs)
-Q_IMPORT_PLUGIN(qtaccessiblewidgets)
-#else
 #if QT_VERSION < 0x050400
 Q_IMPORT_PLUGIN(AccessibleFactory)
 #endif
@@ -74,11 +68,6 @@ Q_IMPORT_PLUGIN(QWindowsPrinterSupportPlugin);
 #elif defined(QT_QPA_PLATFORM_COCOA)
 Q_IMPORT_PLUGIN(QCocoaIntegrationPlugin);
 #endif
-#endif
-#endif
-
-#if QT_VERSION < 0x050000
-#include <QTextCodec>
 #endif
 
 // Declare meta types used for QMetaObject::invokeMethod
@@ -152,20 +141,12 @@ static void initTranslations(QTranslator &qtTranslatorBase, QTranslator &qtTrans
 }
 
 /* qDebug() message handler --> debug.log */
-#if QT_VERSION < 0x050000
-void DebugMessageHandler(QtMsgType type, const char *msg)
-{
-    const char *category = (type == QtDebugMsg) ? "qt" : NULL;
-    LogPrint(category, "GUI: %s\n", msg);
-}
-#else
 void DebugMessageHandler(QtMsgType type, const QMessageLogContext& context, const QString &msg)
 {
     Q_UNUSED(context);
     const char *category = (type == QtDebugMsg) ? "qt" : NULL;
     LogPrint(category, "GUI: %s\n", msg.toStdString());
 }
-#endif
 
 /** Class encapsulating Bitcoin Core startup and shutdown.
  * Allows running startup and shutdown in a different thread from the UI thread.
@@ -367,7 +348,7 @@ BitcoinApplication::~BitcoinApplication()
 #ifdef ENABLE_WALLET
 void BitcoinApplication::createPaymentServer()
 {
-    paymentServer = new PaymentServer(this);
+    paymentServer = new PaymentServer(this, true, GetBoolArg("-enable-bip70", false));
 }
 #endif
 
@@ -465,10 +446,6 @@ void BitcoinApplication::initializeResult(int retval)
     {
         // Log this only after AppInit2 finishes, as then logging setup is guaranteed complete
         qWarning() << "Platform customization:" << platformStyle->getName();
-#ifdef ENABLE_WALLET
-        PaymentServer::LoadRootCAs();
-        paymentServer->setOptionsModel(optionsModel);
-#endif
 
         clientModel = new ClientModel(optionsModel);
         window->setClientModel(clientModel);
@@ -480,9 +457,6 @@ void BitcoinApplication::initializeResult(int retval)
 
             window->addWallet(BitcoinGUI::DEFAULT_WALLET, walletModel);
             window->setCurrentWallet(BitcoinGUI::DEFAULT_WALLET);
-
-            connect(walletModel, SIGNAL(coinsSent(CWallet*,SendCoinsRecipient,QByteArray)),
-                             paymentServer, SLOT(fetchPaymentACK(CWallet*,const SendCoinsRecipient&,QByteArray)));
         }
 #endif
 
@@ -498,10 +472,21 @@ void BitcoinApplication::initializeResult(int retval)
         Q_EMIT splashFinished(window);
 
 #ifdef ENABLE_WALLET
+        paymentServer->setOptionsModel(optionsModel);
+
+        if(GetBoolArg("-enable-bip70", false))
+        {
+            PaymentServer::LoadRootCAs();
+            if(pwalletMain)
+                connect(walletModel, SIGNAL(coinsSent(CWallet*,SendCoinsRecipient,QByteArray)),
+                        paymentServer, SLOT(fetchPaymentACK(CWallet*,const SendCoinsRecipient&,QByteArray)));
+        }
+
         // Now that initialization/startup is done, process any command-line
-        // bitcoin: URIs or payment requests:
+        // payment requests:
         connect(paymentServer, SIGNAL(receivedPaymentRequest(SendCoinsRecipient)),
-                         window, SLOT(handlePaymentRequest(SendCoinsRecipient)));
+                          window, SLOT(handlePaymentRequest(SendCoinsRecipient)));
+        // Now that initialization/startup is done, process any command-line bitcoin: URIs
         connect(window, SIGNAL(receivedURI(QString)),
                          paymentServer, SLOT(handleURIOrFile(QString)));
         connect(paymentServer, SIGNAL(message(QString,QString,unsigned int)),
@@ -534,7 +519,7 @@ WId BitcoinApplication::getMainWinId() const
 }
 
 #ifndef BITCOIN_QT_TEST
-int main(int argc, char *argv[])
+MAIN_FUNCTION
 {
     SetupEnvironment();
 
@@ -545,12 +530,6 @@ int main(int argc, char *argv[])
     // Do not refer to data directory yet, this can be overridden by Intro::pickDataDirectory
 
     /// 2. Basic Qt initialization (not dependent on parameters or configuration)
-#if QT_VERSION < 0x050000
-    // Internal string conversion is all UTF-8
-    QTextCodec::setCodecForTr(QTextCodec::codecForName("UTF-8"));
-    QTextCodec::setCodecForCStrings(QTextCodec::codecForTr());
-#endif
-
     Q_INIT_RESOURCE(bitcoin);
     Q_INIT_RESOURCE(bitcoin_locale);
 
@@ -610,7 +589,7 @@ int main(int argc, char *argv[])
 
     /// 6. Determine availability of data directory and parse bitcoin.conf
     /// - Do not call GetDataDir(true) before this step finishes
-    if (!boost::filesystem::is_directory(GetDataDir(false)))
+    if (!fs::is_directory(GetDataDir(false)))
     {
         QMessageBox::critical(0, QObject::tr(PACKAGE_NAME),
                               QObject::tr("Error: Specified data directory \"%1\" does not exist.").arg(QString::fromStdString(GetArg("-datadir", ""))));
@@ -667,17 +646,12 @@ int main(int argc, char *argv[])
     /// 9. Main GUI initialization
     // Install global event filter that makes sure that long tooltips can be word-wrapped
     app.installEventFilter(new GUIUtil::ToolTipToRichTextFilter(TOOLTIP_WRAP_THRESHOLD, &app));
-#if QT_VERSION < 0x050000
-    // Install qDebug() message handler to route to debug.log
-    qInstallMsgHandler(DebugMessageHandler);
-#else
 #if defined(Q_OS_WIN)
     // Install global event filter for processing Windows session related Windows messages (WM_QUERYENDSESSION and WM_ENDSESSION)
     qApp->installNativeEventFilter(new WinShutdownMonitor());
 #endif
     // Install qDebug() message handler to route to debug.log
     qInstallMessageHandler(DebugMessageHandler);
-#endif
     // Allow parameter interaction before we create the options model
     app.parameterSetup();
     // Load GUI settings from QSettings
@@ -693,7 +667,7 @@ int main(int argc, char *argv[])
     {
         app.createWindow(networkStyle.data());
         app.requestInitialize();
-#if defined(Q_OS_WIN) && QT_VERSION >= 0x050000
+#if defined(Q_OS_WIN)
         WinShutdownMonitor::registerShutdownBlockReason(QObject::tr("%1 didn't yet exit safely...").arg(QObject::tr(PACKAGE_NAME)), (HWND)app.getMainWinId());
 #endif
         app.exec();

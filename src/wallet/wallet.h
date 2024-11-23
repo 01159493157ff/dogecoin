@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
-// Copyright (c) 2022 The Dogecoin Core developers
+// Copyright (c) 2022-2023 The Dogecoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -32,7 +32,6 @@
 #include <utility>
 #include <vector>
 
-#include <boost/shared_ptr.hpp>
 #include <boost/thread.hpp>
 
 extern CWallet* pwalletMain;
@@ -814,11 +813,11 @@ public:
      */
     static CAmount GetMinimumFee(const CMutableTransaction& tx, unsigned int nTxBytes, unsigned int nConfirmTarget, const CTxMemPool& pool, CAmount targetFee);
     /**
-     * Dogecoin: Get a fee targetting a specific transaction speed.
+     * Dogecoin: Get a fee targeting a specific transaction speed.
      */
     CAmount GetDogecoinPriorityFee(const CMutableTransaction& tx, unsigned int nTxBytes, FeeRatePreset nSpeed);
     /**
-     * Dogecoin: Get a fee targetting a specific transaction speed.
+     * Dogecoin: Get a fee targeting a specific transaction speed.
      */
     static CAmount GetDogecoinPriorityFee(const CMutableTransaction& tx, unsigned int nTxBytes, FeeRatePreset nSpeed, CAmount targetFee);
     /**
@@ -878,7 +877,7 @@ public:
 
     void UpdatedTransaction(const uint256 &hashTx) override;
 
-    void GetScriptForMining(boost::shared_ptr<CReserveScript> &script) override;
+    void GetScriptForMining(std::shared_ptr<CReserveScript> &script) override;
 
     unsigned int GetKeyPoolSize()
     {

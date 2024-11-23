@@ -13,8 +13,9 @@ Unix
 ----
 `python3-zmq` and `ltc_scrypt` are required. On Ubuntu or Debian they can be installed via:
 ```
-sudo apt-get update && apt-get install -y curl python3-zmq python3-dev gcc
-cd qa/pull-tester/ && ./install-deps.sh
+sudo apt-get update
+sudo apt-get install -y curl gcc python3-pip python3-setuptools python3-zmq
+./qa/pull-tester/install-deps.sh
 ```
 
 OS X
@@ -22,7 +23,7 @@ OS X
 ```
 brew install curl
 pip3 install pyzmq
-cd qa/pull-tester && ./install-deps.sh
+./qa/pull-tester/install-deps.sh
 ```
 
 Running tests
@@ -53,9 +54,9 @@ Possible options, which apply to each individual test run:
 
 ```
   -h, --help            show this help message and exit
-  --nocleanup           Leave bitcoinds and test.* datadir on exit or error
-  --noshutdown          Don't stop bitcoinds after the test execution
-  --srcdir=SRCDIR       Source directory containing bitcoind/bitcoin-cli
+  --nocleanup           Leave dogecoinds and test.* datadir on exit or error
+  --noshutdown          Don't stop dogecoinds after the test execution
+  --srcdir=SRCDIR       Source directory containing dogecoind/dogecoin-cli
                         (default: ../../src)
   --tmpdir=TMPDIR       Root directory for datadirs
   --tracerpc            Print out all RPC calls as they are made

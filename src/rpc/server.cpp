@@ -1,12 +1,13 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
-// Copyright (c) 2021 The Dogecoin Core developers
+// Copyright (c) 2021-2023 The Dogecoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "rpc/server.h"
 
 #include "base58.h"
+#include "fs.h"
 #include "init.h"
 #include "random.h"
 #include "sync.h"
@@ -17,9 +18,7 @@
 #include <univalue.h>
 
 #include <boost/bind/bind.hpp>
-#include <boost/filesystem.hpp>
 #include <boost/foreach.hpp>
-#include <boost/shared_ptr.hpp>
 #include <boost/signals2/signal.hpp>
 #include <boost/thread.hpp>
 #include <boost/algorithm/string/case_conv.hpp> // for to_upper()
@@ -278,6 +277,22 @@ UniValue stop(const JSONRPCRequest& jsonRequest)
     return "Dogecoin server stopping";
 }
 
+UniValue uptime(const JSONRPCRequest& jsonRequest)
+{
+    if (jsonRequest.fHelp || jsonRequest.params.size() > 1)
+        throw std::runtime_error(
+                "uptime\n"
+                        "\nReturns the total uptime of the server.\n"
+                        "\nResult:\n"
+                        "ttt        (numeric) The number of seconds that the server has been running\n"
+                        "\nExamples:\n"
+                + HelpExampleCli("uptime", "")
+                + HelpExampleRpc("uptime", "")
+        );
+
+    return GetTime() - GetStartupTime();
+}
+
 /**
  * Call Table
  */
@@ -287,6 +302,7 @@ static const CRPCCommand vRPCCommands[] =
     /* Overall control/query calls */
     { "control",            "help",                   &help,                   true,  {"command"}  },
     { "control",            "stop",                   &stop,                   true,  {}  },
+    { "control",            "uptime",                 &uptime,                 true,  {}  },
 };
 
 CRPCTable::CRPCTable()

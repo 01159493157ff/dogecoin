@@ -10,12 +10,13 @@
 
 #include "chainparamsbase.h"
 #include "clientversion.h"
+#include "compat.h"
+#include "fs.h"
 #include "rpc/client.h"
 #include "rpc/protocol.h"
 #include "util.h"
 #include "utilstrencodings.h"
 
-#include <boost/filesystem/operations.hpp>
 #include <stdio.h>
 
 #include <event2/buffer.h>
@@ -98,7 +99,7 @@ static int AppInitRPC(int argc, char* argv[])
         }
         return EXIT_SUCCESS;
     }
-    if (!boost::filesystem::is_directory(GetDataDir(false))) {
+    if (!fs::is_directory(GetDataDir(false))) {
         fprintf(stderr, "Error: Specified data directory \"%s\" does not exist.\n", GetArg("-datadir", "").c_str());
         return EXIT_FAILURE;
     }
@@ -356,7 +357,7 @@ int CommandLineRPC(int argc, char *argv[])
     return nRet;
 }
 
-int main(int argc, char* argv[])
+MAIN_FUNCTION
 {
     SetupEnvironment();
     if (!SetupNetworking()) {
